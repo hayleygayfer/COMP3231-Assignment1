@@ -10,6 +10,20 @@
  *  synchronise your queues and/or requests.
  */
 
+#define BUFFER_SIZE 10
+#define BUFFLEN (BUFFER_SIZE + 1)
+
+request_t * request_buffer[BUFFER_SIZE + 1];
+
+struct semaphore *mutex;
+
+/* count empty slots */
+struct semaphore *empty;
+
+/* count full slots */
+struct semaphore *full;
+
+volatile int head, tail;
 
 /* work_queue_enqueue():
  *
@@ -29,7 +43,16 @@
    
 
 void work_queue_enqueue(request_t *req)
-{
+{       
+        P(empty);
+        P(mutex);
+
+        request_buffer[head] = req;
+        head = (head + 1) % BUFFLEN;
+
+        V(mutex);
+        V(full);
+
         (void) req; /* Avoid compiler error */
 }
 
@@ -50,8 +73,18 @@ void work_queue_enqueue(request_t *req)
 
 request_t *work_queue_get_next(void)
 {
+        request_t * request;
 
-        return NULL;
+        P(full);
+        P(mutex);
+
+        request = request_buffer[tail];
+        tail = (tail + 1) % BUFFLEN;
+        
+        V(mutex);
+        V(empty);
+
+        return request;
 }
 
 
@@ -71,7 +104,24 @@ request_t *work_queue_get_next(void)
 
 int work_queue_setup(void)
 {
-        return ENOSYS;
+        head = tail = 0;
+
+        mutex = sem_create("mutex", 1);
+        if (mutex == NULL) {
+                return ENOSYS;
+        }
+
+        empty = sem_create("empty", BUFFER_SIZE);
+        if (empty == NULL) {
+                return ENOSYS;
+        }
+
+        full = sem_create("full", 0);
+        if (full == NULL) {
+                return ENOSYS;
+        }
+
+        return 0;
 
 }
 
@@ -88,5 +138,7 @@ int work_queue_setup(void)
 
 void work_queue_shutdown(void)
 {
-
+        sem_destroy(mutex);
+        sem_destroy(empty);
+        sem_destroy(full);
 }

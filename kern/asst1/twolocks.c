@@ -8,6 +8,8 @@
 
 /********************************************************************************
  Document your resource order here. 
+ Lock are always acquired in this order: a, b
+ and then released in the order: a, b
 ********************************************************************************/
 
 
@@ -35,13 +37,15 @@ static void bill(void * unusedpointer, unsigned long unusedint)
 
         for (i = 0; i < NUM_LOOPS; i++) {
                 
+                lock_acquire(locka); // new lock a position
+
                 lock_acquire(lockb);
                 
                 holds_lockb();          /* Critical section */
                 
                 lock_release(lockb);
 
-                lock_acquire(locka);
+                // lock_acquire(locka); original position
                 lock_acquire(lockb);
 
                                         /* Bill now holds both locks and can do
@@ -49,8 +53,9 @@ static void bill(void * unusedpointer, unsigned long unusedint)
                                          the locks */
                 holds_locka_and_b();
                 
+                lock_release(locka); // new position
                 lock_release(lockb);
-                lock_release(locka);
+                //lock_release(locka); old position
         }
 
         kprintf("Bill says 'bye'\n");
@@ -97,8 +102,9 @@ static void ben(void * unusedpointer, unsigned long unusedint)
                 
                 lock_release(locka);
 
+                lock_acquire(locka); // new position
                 lock_acquire(lockb);
-                lock_acquire(locka);
+                //lock_acquire(locka); old position
 
                                         /* Ben now holds both locks and can do
                                          what ever ben needs to do while holding

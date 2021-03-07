@@ -15,47 +15,54 @@
 
 #define BUFFLEN (BUFFER_SIZE + 1)
 
-data_item_t * item_buffer[BUFFER_SIZE+1];
+data_item_t * item_buffer[BUFFER_SIZE + 1];
 
+struct semaphore *mutex;
 
+/* count empty slots */
+struct semaphore *empty;
+
+/* count full slots */
+struct semaphore *full;
 
 volatile int head, tail;
 
 
 /* consumer_receive() is called by a consumer to request more data. It
    should block on a sync primitive if no data is available in your
-   buffer. It should not busy wait! */
+   buffer. It should not busy P! */
 
 data_item_t * consumer_receive(void)
 {
         data_item_t * item;
+        
+        P(full);
+        P(mutex);
 
-
-        while(head == tail) {
-                /* busy wait */
-        }
         item = item_buffer[tail];
         tail = (tail + 1) % BUFFLEN;
-
         
-        /******************
-         * Remove above here
-         */
+        V(mutex);
+        V(empty);
 
         return item;
 }
 
 /* procucer_send() is called by a producer to store data in your
    bounded buffer.  It should block on a sync primitive if no space is
-   available in your buffer. It should not busy wait!*/
+   available in your buffer. It should not busy P!*/
 
 void producer_send(data_item_t *item)
 {
-        while((head + 1) % BUFFLEN == tail) {
-                /* busy wait */
-        }
+
+        P(empty);
+        P(mutex);
+
         item_buffer[head] = item;
         head = (head + 1) % BUFFLEN;
+
+        V(mutex);
+        V(full);
 }
 
 
@@ -68,10 +75,27 @@ void producerconsumer_startup(void)
 {
         head = tail = 0;
 
+        mutex = sem_create("mutex", 1);
+        if (mutex == NULL) {
+                panic("mutex failed");
+        }
+
+        empty = sem_create("empty", BUFFER_SIZE);
+        if (empty == NULL) {
+                panic("empty failed");
+        }
+
+        full = sem_create("full", 0);
+        if (full == NULL) {
+                panic("full failed");
+        }
 }
 
 /* Perform any clean-up you need here */
 void producerconsumer_shutdown(void)
 {
+        sem_destroy(mutex);
+        sem_destroy(empty);
+        sem_destroy(full);
 }
 

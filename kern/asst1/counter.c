@@ -21,6 +21,7 @@
  */
 
 static volatile int the_counter;
+struct lock *count_lock;
 
 /*
  * ********************************************************************
@@ -28,15 +29,18 @@ static volatile int the_counter;
  * ********************************************************************
  */
 
-
 void counter_increment(void)
 {
+        lock_acquire(count_lock);
         the_counter = the_counter + 1;
+        lock_release(count_lock);
 }
 
 void counter_decrement(void)
 {
+        lock_acquire(count_lock);
         the_counter = the_counter - 1;
+        lock_release(count_lock);
 }
 
 int counter_initialise(int val)
@@ -48,7 +52,12 @@ int counter_initialise(int val)
          * INSERT ANY INITIALISATION CODE YOU REQUIRE HERE
          * ********************************************************************
          */
-        
+
+        count_lock = lock_create("count_lock");
+
+        if (count_lock == NULL) {
+                return ENOMEM;
+        }
         
         /*
          * Return 0 to indicate success
@@ -68,6 +77,12 @@ int counter_read_and_destroy(void)
          * INSERT ANY CLEANUP CODE YOU REQUIRE HERE
          * **********************************************************************
          */
+        
+        lock_destroy(count_lock);
 
         return the_counter;
 }
+
+
+
+
